@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SLACK_BOT_TOKEN = "xoxb-9019232795585-9005356538517-BivjRiOkxs7LnBkv91RgOLTJ"
-SLACK_SIGNING_SECRET = "bb80da7ba670b44db1b86ee9bfa05a67"  # You MUST replace this with actual signing secret
+SLACK_BOT_TOKEN = "."
+SLACK_SIGNING_SECRET = "."  # You MUST replace this with actual signing secret
 MCP_URL = "http://localhost:5000/api/book"
 
 # Initialize Flask app FIRST
