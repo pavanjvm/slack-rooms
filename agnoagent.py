@@ -49,7 +49,7 @@ async def run_agent(message: str) -> str:
             agent = Agent(
                 model=OpenAIChat(
                     id="gpt-4.1",
-                    api_key="."
+                    api_key=""
                 ),
                 tools=[mcp_tools, datetime_toolkit],
                 show_tool_calls=False,
