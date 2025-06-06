@@ -108,18 +108,22 @@ class MeetingRoomServer {
                 throw new Error(`Failed to get available rooms: ${error instanceof Error ? error.message : String(error)}`);
             }
         });
-        // Book room tool
+        // Book room tool - now includes name parameter
         server.tool("book_room", {
             room_id: zod_1.z.number().describe("ID of the room to book"),
             date: zod_1.z.string().describe("Date in YYYY-MM-DD format"),
             start_time: zod_1.z.string().describe("Start time in HH:MM format (24-hour)"),
-            end_time: zod_1.z.string().describe("End time in HH:MM format (24-hour)")
-        }, async ({ room_id, date, start_time, end_time }) => {
+            end_time: zod_1.z.string().describe("End time in HH:MM format (24-hour)"),
+            name: zod_1.z.string().describe("Name of the person booking the room")
+        }, async ({ room_id, date, start_time, end_time, name }) => {
             const startDateTime = `${date}T${start_time}:00`;
             const endDateTime = `${date}T${end_time}:00`;
             try {
                 if (!room_id) {
                     throw new Error("room_id is required");
+                }
+                if (!name || name.trim() === '') {
+                    throw new Error("name is required");
                 }
                 // Get room details
                 const { data: room, error: roomError } = await supabase
@@ -143,14 +147,15 @@ class MeetingRoomServer {
                 if (conflicts && conflicts.length > 0) {
                     throw new Error(`Room '${room.name}' is already booked during the requested time`);
                 }
-                // Create booking
+                // Create booking with name
                 const { data: booking, error: bookingError } = await supabase
                     .from('bookings')
                     .insert([{
                         room_id: room_id,
                         start_time: startDateTime,
                         end_time: endDateTime,
-                        status: 'confirmed'
+                        status: 'confirmed',
+                        name: name.trim()
                     }])
                     .select()
                     .single();
@@ -163,13 +168,14 @@ class MeetingRoomServer {
                                 success: true,
                                 booking_id: booking.id,
                                 room_name: room.name,
+                                booked_by: name.trim(),
                                 booking_details: {
                                     date,
                                     start_time,
                                     end_time,
                                     status: 'confirmed'
                                 },
-                                message: `Room '${room.name}' successfully booked for ${date} from ${start_time} to ${end_time}`
+                                message: `Room '${room.name}' successfully booked by ${name.trim()} for ${date} from ${start_time} to ${end_time}`
                             }, null, 2)
                         }]
                 };
@@ -178,7 +184,7 @@ class MeetingRoomServer {
                 throw new Error(`Failed to book room: ${error instanceof Error ? error.message : String(error)}`);
             }
         });
-        // Get room bookings tool
+        // Get room bookings tool - now returns who booked each room
         server.tool("get_room_bookings", {
             room_id: zod_1.z.number().describe("ID of the room"),
             date: zod_1.z.string().describe("Date in YYYY-MM-DD format")
@@ -199,14 +205,24 @@ class MeetingRoomServer {
                     .order('start_time');
                 if (error)
                     throw error;
+                // Format bookings to include who booked each slot
+                const formattedBookings = bookings?.map(booking => ({
+                    booking_id: booking.id,
+                    start_time: booking.start_time,
+                    end_time: booking.end_time,
+                    booked_by: booking.name,
+                    status: booking.status,
+                    created_at: booking.created_at
+                })) || [];
                 return {
                     content: [{
                             type: "text",
                             text: JSON.stringify({
                                 room_id,
+                                room_name: bookings?.[0]?.rooms?.name || 'Unknown',
                                 date,
-                                bookings: bookings || [],
-                                total_bookings: bookings?.length || 0
+                                bookings: formattedBookings,
+                                total_bookings: formattedBookings.length
                             }, null, 2)
                         }]
                 };
@@ -248,6 +264,7 @@ class MeetingRoomServer {
                                 cancelled_booking: {
                                     booking_id,
                                     room_name: booking.rooms.name,
+                                    booked_by: booking.name,
                                     start_time: booking.start_time,
                                     end_time: booking.end_time
                                 }

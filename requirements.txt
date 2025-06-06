@@ -1,0 +1,7 @@
+agno
+openai
+aiohttp
+slack_bolt
+python-dotenv
+requests
+flask
