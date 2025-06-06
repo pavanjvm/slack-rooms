@@ -13,8 +13,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Supabase configuration
-const supabaseUrl = 'https://mlqoofzdxkoqoiologmf.supabase.co';
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1scW9vZnpkeGtvcW9pb2xvZ21mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg5NDM5NjQsImV4cCI6MjA2NDUxOTk2NH0.DFcGsIlEzXsEOIsYVw2jXlwYSNRE-_Eo2PlgOs3AwlE";
+const supabaseUrl = "";
+const supabaseKey = "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Define types for database records
