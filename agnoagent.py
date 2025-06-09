@@ -26,13 +26,13 @@ memory_db = SqliteMemoryDb(
     db_file="tmp/memory.db"
 )
 
-
 # Configuration
 SERVER_URL = "http://localhost:3001/mcp"
-GEMINI_API_KEY = ""
+GEMINI_API_KEY = "AIzaSyB_nXNqTCAiZZH6SqYRUsPwxtGa6kDlay8"
 
 # FastAPI app instance
 app = FastAPI(title="Agent API", description="API for MCP Agent interactions")
+
 memory = Memory(
     db=memory_db,
     memory_manager=MemoryManager(
@@ -45,6 +45,7 @@ memory = Memory(
         ),
     ),
 )
+
 # Request model
 class PromptRequest(BaseModel):
     message: str
@@ -54,8 +55,6 @@ class AgentResponse(BaseModel):
     response: str
     success: bool
     error: Optional[str] = None
-
-
 
 # Custom datetime tool
 def get_current_datetime() -> str:
@@ -67,8 +66,68 @@ def get_current_datetime() -> str:
 datetime_toolkit = Toolkit()
 datetime_toolkit.register(get_current_datetime)
 
+# Global agent instance - will be initialized on startup
+agent = None
+mcp_tools = None
+
+async def initialize_agent():
+    """Initialize the agent and MCP tools once on startup"""
+    global agent, mcp_tools
+    
+    try:
+        print("🔄 Initializing MCP tools and agent...")
+        
+        # Initialize MCP tools connection
+        mcp_tools = MCPTools(transport="streamable-http", url=SERVER_URL)
+        await mcp_tools.__aenter__()  # Manually enter the context
+        
+        # Create the agent with persistent tools
+        agent = Agent(
+            model=Gemini(
+                id="gemini-1.5-pro-002",  # High context, very good model
+                api_key=GEMINI_API_KEY
+            ),
+            tools=[mcp_tools, datetime_toolkit],
+            show_tool_calls=False,
+            markdown=False,
+            memory=memory,
+            add_history_to_messages=True,
+            num_history_responses=3,
+            enable_user_memories=True,
+            instructions=[
+                "You are a meeting room booking agent.these are the room names [denali, cherry blossom, donee, some room, lilac, Peony] there could be some typo find the best matching room from this list",
+                "IMPORTANT: Always check the current date and time first using get_current_datetime() before processing any booking request.",
+                "You can only book meetings for future dates and times. Do not allow bookings for past dates or times.",
+                "If no date is specified, use today's date but ensure the time is in the future.",
+                "If a user tries to book a meeting in the past, politely decline and suggest future time slots.",
+                "When processing booking requests,always make a tool call to check the booked slots of that particular room to make sure the current booking time doesnt conflict with previous bookings and  validate that the requested date/time is after the current date/time and always ask for name if not provided"
+            ]
+        )
+        
+        print("✅ Agent and MCP tools initialized successfully!")
+        
+    except Exception as e:
+        print(f"❌ Failed to initialize agent: {e}")
+        raise e
+
+async def cleanup_agent():
+    """Cleanup the agent and MCP tools on shutdown"""
+    global mcp_tools
+    
+    try:
+        if mcp_tools:
+            await mcp_tools.__aexit__(None, None, None)  # Manually exit the context
+            print("✅ MCP tools cleaned up successfully!")
+    except Exception as e:
+        print(f"❌ Error during cleanup: {e}")
+
 async def run_agent(message: str) -> str:
-    """Run agent with MCP connection"""
+    """Run agent with the persistent agent instance"""
+    global agent
+    
+    if agent is None:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
+    
     try:
         print(f"\n=== AGENT REQUEST ===")
         print(f"Message: {message}")
@@ -76,62 +135,50 @@ async def run_agent(message: str) -> str:
         # Capture output
         output_buffer = io.StringIO()
         
-        async with MCPTools(transport="streamable-http", url=SERVER_URL) as mcp_tools:
-            agent = Agent(
-                model=Gemini(
-                    id="gemini-1.5-pro-002",  # High context, very good model
-                    api_key=GEMINI_API_KEY
-                ),
-                tools=[mcp_tools, datetime_toolkit],
-                show_tool_calls=False,
-                markdown=False,
-                memory=memory,
-                add_history_to_messages=True,
-                num_history_responses=3,
-                enable_user_memories=True,
-                instructions=[
-                    "You are a meeting room booking agent.these are the room names [denali, cherry blossom, donee, some room, lilac, Peony] there could be some typo find the best matching room from this list",
-                    "IMPORTANT: Always check the current date and time first using get_current_datetime() before processing any booking request.",
-                    "You can only book meetings for future dates and times. Do not allow bookings for past dates or times.",
-                    "If no date is specified, use today's date but ensure the time is in the future.",
-                    "If a user tries to book a meeting in the past, politely decline and suggest future time slots.",
-                    "When processing booking requests,always make a tool call to check the booked slots of that particular room to make sure the current booking time doesnt conflict with previous bookings and  validate that the requested date/time is after the current date/time and always ask for name if not provided"
-                ]
-            )
+        # Use the persistent agent instance
+        print("🔄 Calling agent.arun()...")
+        try:
+            response_obj = await agent.arun(message=message)
+            print(f"✅ Got response object: {type(response_obj)}")
             
-            # Get the agent response
-            print("🔄 Calling agent.arun()...")
-            try:
-                response_obj = await agent.arun(message=message)
-                print(f"✅ Got response object: {type(response_obj)}")
+            # Extract the actual content from the response object
+            if hasattr(response_obj, 'content'):
+                raw_response = str(response_obj.content)
+            elif hasattr(response_obj, 'text'):
+                raw_response = str(response_obj.text)
+            else:
+                raw_response = str(response_obj)
                 
-                # Extract the actual content from the response object
-                if hasattr(response_obj, 'content'):
-                    raw_response = str(response_obj.content)
-                elif hasattr(response_obj, 'text'):
-                    raw_response = str(response_obj.text)
-                else:
-                    raw_response = str(response_obj)
-                    
-            except Exception as e:
-                print(f"❌ arun() failed: {e}")
-                print("🔄 Trying aprint_response() fallback...")
-                
-                # Fallback to aprint_response with output capture
-                with redirect_stdout(output_buffer):
-                    await agent.aprint_response(message=message, stream=False, markdown=False)
-                
-                raw_response = output_buffer.getvalue()
+        except Exception as e:
+            print(f"❌ arun() failed: {e}")
+            print("🔄 Trying aprint_response() fallback...")
             
-            print(f"\n=== RESPONSE ===")
-            print(raw_response)
-            print(f"=== END RESPONSE ===\n")
+            # Fallback to aprint_response with output capture
+            with redirect_stdout(output_buffer):
+                await agent.aprint_response(message=message, stream=False, markdown=False)
             
-            return raw_response
-            
+            raw_response = output_buffer.getvalue()
+        
+        print(f"\n=== RESPONSE ===")
+        print(raw_response)
+        print(f"=== END RESPONSE ===\n")
+        
+        return raw_response
+        
     except Exception as e:
         print(f"ERROR in run_agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
+# FastAPI event handlers
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the agent on application startup"""
+    await initialize_agent()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup the agent on application shutdown"""
+    await cleanup_agent()
 
 @app.post("/agent", response_model=AgentResponse)
 async def process_agent_request(request: PromptRequest):
