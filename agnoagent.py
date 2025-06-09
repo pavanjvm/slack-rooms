@@ -6,13 +6,45 @@ import io
 from contextlib import redirect_stdout
 from datetime import datetime
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.google import Gemini
 from agno.tools.mcp import MCPTools
 from agno.tools.toolkit import Toolkit
+from agno.storage.sqlite import SqliteStorage
+from agno.memory.v2.db.sqlite import SqliteMemoryDb
+from agno.memory.v2.memory import Memory
+from agno.memory.v2.manager import MemoryManager
+import os
+
+os.makedirs("tmp", exist_ok=True)
+
+agent_storage = SqliteStorage(
+    table_name="agent_sessions", 
+    db_file="tmp/persistent_memory.db"
+)
+memory_db = SqliteMemoryDb(
+    table_name="memory", 
+    db_file="tmp/memory.db"
+)
+
+
+# Configuration
+SERVER_URL = "http://localhost:3001/mcp"
+GEMINI_API_KEY = ""
 
 # FastAPI app instance
 app = FastAPI(title="Agent API", description="API for MCP Agent interactions")
-
+memory = Memory(
+    db=memory_db,
+    memory_manager=MemoryManager(
+        memory_capture_instructions="""\
+            Maintain conversation context and history
+        """,
+        model=Gemini(
+            id="gemini-1.5-pro-002",
+            api_key=GEMINI_API_KEY
+        ),
+    ),
+)
 # Request model
 class PromptRequest(BaseModel):
     message: str
@@ -23,8 +55,7 @@ class AgentResponse(BaseModel):
     success: bool
     error: Optional[str] = None
 
-# Configuration
-SERVER_URL = "http://localhost:3001/mcp"
+
 
 # Custom datetime tool
 def get_current_datetime() -> str:
@@ -47,21 +78,25 @@ async def run_agent(message: str) -> str:
         
         async with MCPTools(transport="streamable-http", url=SERVER_URL) as mcp_tools:
             agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-4.1",
-                    api_key=os.environ.OPENAI
+                model=Gemini(
+                    id="gemini-1.5-pro-002",  # High context, very good model
+                    api_key=GEMINI_API_KEY
                 ),
                 tools=[mcp_tools, datetime_toolkit],
                 show_tool_calls=False,
                 markdown=False,
+                memory=memory,
+                add_history_to_messages=True,
+                num_history_responses=3,
+                enable_user_memories=True,
                 instructions=[
-                    "You are a meeting room booking agent.",
+                    "You are a meeting room booking agent.these are the room names [denali, cherry blossom, donee, some room, lilac, Peony] there could be some typo find the best matching room from this list",
                     "IMPORTANT: Always check the current date and time first using get_current_datetime() before processing any booking request.",
                     "You can only book meetings for future dates and times. Do not allow bookings for past dates or times.",
                     "If no date is specified, use today's date but ensure the time is in the future.",
                     "If a user tries to book a meeting in the past, politely decline and suggest future time slots.",
-                    "When processing booking requests, validate that the requested date/time is after the current date/time and always ask for name if not provided"
-                    ]
+                    "When processing booking requests,always make a tool call to check the booked slots of that particular room to make sure the current booking time doesnt conflict with previous bookings and  validate that the requested date/time is after the current date/time and always ask for name if not provided"
+                ]
             )
             
             # Get the agent response
@@ -141,6 +176,7 @@ async def health_check():
     return {
         "status": "healthy",
         "server_url": SERVER_URL,
+        "model": "gemini-1.5-pro-002",
         "endpoints": {
             "agent": "/agent (POST)",
             "health": "/health (GET)"
@@ -167,8 +203,9 @@ async def process_simple_request(request: PromptRequest):
 if __name__ == "__main__":
     import uvicorn
     
-    print("🎯 Starting FastAPI Agent Server...")
+    print("🎯 Starting FastAPI Agent Server with Google Gemini...")
     print(f"Server URL: {SERVER_URL}")
+    print(f"Model: gemini-1.5-pro-002")
     
     # Run the FastAPI server
     uvicorn.run(
