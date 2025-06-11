@@ -1,7 +1,7 @@
 agno
-openai
 aiohttp
 slack_bolt
 python-dotenv
-requests
-flask
+google-genai
+fastapi
+uvicorn[standard]
