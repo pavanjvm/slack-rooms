@@ -100,7 +100,8 @@ async def initialize_agent():
                 "You can only book meetings for future dates and times. Do not allow bookings for past dates or times.",
                 "If no date is specified, use today's date but ensure the time is in the future.",
                 "If a user tries to book a meeting in the past, politely decline and suggest future time slots.",
-                "When processing booking requests,always make a tool call to check the booked slots of that particular room to make sure the current booking time doesnt conflict with previous bookings and  validate that the requested date/time is after the current date/time and always ask for name if not provided. the number of tool calls should not exceed 2."
+                "always reply with the username like hi <username> and then reply message",
+                "When processing booking requests,always make a tool call to check the booked slots of that particular room to make sure the current booking time doesnt conflict with previous bookings and validate that the requested date/time is after the current date/time and always ask for name if not provided. make sure to do with least tool calls"
             ]
         )
         
@@ -259,5 +260,6 @@ if __name__ == "__main__":
         "agnoagent:app",  # Change "main" to your filename if different
         host="0.0.0.0",
         port=8000,
-        reload=True
+        reload=False,
+        workers=1
     )
