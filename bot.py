@@ -14,8 +14,8 @@ import json
 
 load_dotenv()
 
-SLACK_BOT_TOKEN = "xoxb-9019232795585-9005356538517-H2u8HBZS8ar54UH7kffNvrXh"
-SLACK_SIGNING_SECRET = "bb80da7ba670b44db1b86ee9bfa05a67"
+SLACK_BOT_TOKEN = ""
+SLACK_SIGNING_SECRET = ""
 MCP_URL = "http://localhost:8000/agent"
 
 # Initialize FastAPI app
