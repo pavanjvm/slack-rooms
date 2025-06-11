@@ -28,7 +28,7 @@ memory_db = SqliteMemoryDb(
 
 # Configuration
 SERVER_URL = "http://localhost:3001/mcp"
-GEMINI_API_KEY = "AIzaSyB_nXNqTCAiZZH6SqYRUsPwxtGa6kDlay8"
+GEMINI_API_KEY = ""
 
 # FastAPI app instance
 app = FastAPI(title="Agent API", description="API for MCP Agent interactions")
