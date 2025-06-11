@@ -6,3 +6,4 @@ google-genai
 fastapi
 openai
 uvicorn[standard]
+#some not inc
