@@ -1,6 +1,6 @@
 # Node.js dependencies
 node_modules/
-
+/dist
 # Optional npm cache directory
 .npm/
 
