@@ -1,0 +1,21 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "main": "aibot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@langchain/core": "^0.3.64",
+    "@langchain/langgraph": "^0.3.9",
+    "@langchain/openai": "^0.6.1",
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "@slack/bolt": "^4.4.0",
+    "dotenv": "^17.2.0",
+    "langchain": "^0.3.30"
+  }
+}
