@@ -1,0 +1,8 @@
+agno
+aiohttp
+slack_bolt
+python-dotenv
+google-genai
+fastapi
+openai
+uvicorn[standard]
